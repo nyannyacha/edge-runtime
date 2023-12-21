@@ -1,3 +1,4 @@
+#[cfg(not(feature = "tracing"))]
 mod logger;
 
 use anyhow::{anyhow, bail, Error};
@@ -14,6 +15,9 @@ use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
+
+#[cfg(feature = "tracing")]
+use tracing_subscriber::EnvFilter;
 
 fn cli() -> Command {
     Command::new("edge-runtime")
@@ -113,9 +117,20 @@ fn main() -> Result<(), anyhow::Error> {
         let matches = cli().get_matches();
 
         if !matches.get_flag("quiet") {
-            let verbose = matches.get_flag("verbose");
-            let include_source = matches.get_flag("log-source");
-            logger::init(verbose, include_source);
+            #[cfg(feature = "tracing")]
+            {
+                tracing_subscriber::fmt()
+                    .with_env_filter(EnvFilter::from_default_env())
+                    .with_thread_names(true)
+                    .init();
+            }
+
+            #[cfg(not(feature = "tracing"))]
+            {
+                let verbose = matches.get_flag("verbose");
+                let include_source = matches.get_flag("log-source");
+                logger::init(verbose, include_source);
+            }
         }
 
         #[allow(clippy::single_match)]

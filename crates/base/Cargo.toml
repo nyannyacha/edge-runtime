@@ -21,9 +21,9 @@ deno_fs.workspace = true
 deno_io = { workspace = true }
 deno_core = { workspace = true }
 deno_console = { workspace = true }
-deno_crypto =  { workspace = true }
+deno_crypto = { workspace = true }
 deno_fetch = { workspace = true }
-deno_http =  { workspace = true }
+deno_http = { workspace = true }
 deno_net = { workspace = true }
 deno_url = { workspace = true }
 deno_tls = { workspace = true }
@@ -41,7 +41,7 @@ tokio = { workspace = true }
 tokio-util = { workspace = true, features = [ "rt" ] }
 futures-util = { workspace = true }
 url = { version = "2.3.1" }
-event_worker ={ version = "0.1.0", path = "../event_worker" }
+event_worker = { version = "0.1.0", path = "../event_worker" }
 sb_workers = { version = "0.1.0", path = "../sb_workers" }
 sb_env = { version = "0.1.0", path = "../sb_env" }
 sb_core = { version = "0.1.0", path = "../sb_core" }
@@ -53,7 +53,9 @@ uuid = { workspace = true }
 deno_broadcast_channel.workspace = true
 sb_node = { version = "0.1.0", path = "../node" }
 eszip.workspace = true
-notify = { version = "6.1.1", default-features = false, features = ["macos_kqueue"] }
+notify = { version = "6.1.1", default-features = false, features = [
+    "macos_kqueue",
+] }
 flume = { version = "0.11.0" }
 enum-as-inner.workspace = true
 urlencoding.workspace = true
@@ -79,9 +81,9 @@ deno_fs.workspace = true
 deno_io = { workspace = true }
 deno_core = { workspace = true }
 deno_console = { workspace = true }
-deno_crypto =  { workspace = true }
+deno_crypto = { workspace = true }
 deno_fetch = { workspace = true }
-deno_http =  { workspace = true }
+deno_http = { workspace = true }
 deno_net = { workspace = true }
 deno_url = { workspace = true }
 deno_tls = { workspace = true }
@@ -96,5 +98,5 @@ reqwest.workspace = true
 serde = { version = "1.0.149", features = ["derive"] }
 tokio.workspace = true
 url = { version = "2.3.1" }
-event_worker ={ version = "0.1.0", path = "../event_worker" }
+event_worker = { version = "0.1.0", path = "../event_worker" }
 deno_broadcast_channel.workspace = true

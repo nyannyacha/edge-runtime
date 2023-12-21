@@ -16,6 +16,10 @@ env_logger = "0.10.0"
 log = { workspace = true }
 sb_graph = { path = "../sb_graph" }
 tokio.workspace = true
+tracing-subscriber = { version = "0.3.18", optional = true, features = ["env-filter", "tracing-log"] }
 
 [build-dependencies]
 dotenv-build = { version = "0.1.1" }
+
+[features]
+tracing = ["dep:tracing-subscriber"]
