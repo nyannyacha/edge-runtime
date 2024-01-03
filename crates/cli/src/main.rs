@@ -16,8 +16,15 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+#[cfg(all(feature = "jemalloc", not(target_env = "msvc")))]
+use tikv_jemallocator::Jemalloc;
+
 #[cfg(feature = "tracing")]
 use tracing_subscriber::EnvFilter;
+
+#[cfg(all(feature = "jemalloc", not(target_env = "msvc")))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
 
 fn cli() -> Command {
     Command::new("edge-runtime")
@@ -121,6 +128,8 @@ fn main() -> Result<(), anyhow::Error> {
             {
                 tracing_subscriber::fmt()
                     .with_env_filter(EnvFilter::from_default_env())
+                    .with_file(true)
+                    .with_line_number(true)
                     .with_thread_names(true)
                     .init();
             }
