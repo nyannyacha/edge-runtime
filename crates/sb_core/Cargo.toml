@@ -56,3 +56,4 @@ data-url = { version = "=0.3.0" }
 cache_control = { version = "=0.2.0" }
 chrono = { version = "=0.4.22", default-features = false, features = ["clock"] }
 twox-hash = { version = "=1.6.3" }
+serde_prometheus = { version = "0.2" }
