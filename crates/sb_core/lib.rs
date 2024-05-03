@@ -282,9 +282,7 @@ fn op_console_size(_state: &mut OpState, #[buffer] _result: &mut [u32]) -> Resul
     Ok(())
 }
 
-#[op2(async)]
-#[serde]
-async fn op_runtime_metrics(state: Rc<RefCell<OpState>>) -> Result<RuntimeMetrics, AnyError> {
+async fn get_runtime_metrics(state: Rc<RefCell<OpState>>) -> Result<RuntimeMetrics, AnyError> {
     let mut runtime_metrics = RuntimeMetrics::default();
     let mut runtime_metric_src = {
         let state = state.borrow();
@@ -296,6 +294,20 @@ async fn op_runtime_metrics(state: Rc<RefCell<OpState>>) -> Result<RuntimeMetric
         RuntimeSharedStatistics::from_shared_metric_src(&runtime_metric_src.shared);
 
     Ok(runtime_metrics)
+}
+
+#[op2(async)]
+#[serde]
+async fn op_runtime_metrics_json(state: Rc<RefCell<OpState>>) -> Result<RuntimeMetrics, AnyError> {
+    get_runtime_metrics(state).await
+}
+
+#[op2(async)]
+#[string]
+async fn op_runtime_metrics_prometheus(state: Rc<RefCell<OpState>>) -> Result<String, AnyError> {
+    let runtime_metrics = get_runtime_metrics(state).await?;
+
+    todo!()
 }
 
 #[op2(fast)]
@@ -354,7 +366,8 @@ deno_core::extension!(
         op_console_size,
         op_read_line_prompt,
         op_set_exit_code,
-        op_runtime_metrics,
+        op_runtime_metrics_json,
+        op_runtime_metrics_prometheus,
         op_schedule_mem_check,
         op_runtime_memory_usage
     ],
