@@ -79,10 +79,13 @@ httparse = "1.8"
 http = "0.2"
 faster-hex = "0.9.0"
 strum = "0.25"
+sha2 = "0.10"
+rkyv = "0.7"
 
 # DEBUG
-#[patch.crates-io]
-#deno_core = { path = "/your/path/to/deno_core/core" }
+[patch.crates-io]
+eszip = { git = "https://github.com/nyannyacha/eszip", branch = "fix-pub-vis-0-60-0" }
+# deno_core = { path = "/your/path/to/deno_core/core" }
 
 [profile.dind]
 inherits = "dev"
