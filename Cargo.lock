@@ -4889,6 +4889,7 @@ dependencies = [
  "serde",
  "thiserror",
  "tokio",
+ "url",
 ]
 
 [[package]]
@@ -4911,6 +4912,7 @@ dependencies = [
  "import_map",
  "log",
  "once_cell",
+ "pathdiff",
  "rkyv",
  "sb_core",
  "sb_eszip_shared",

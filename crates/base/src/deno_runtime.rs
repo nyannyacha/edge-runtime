@@ -56,9 +56,7 @@ use sb_env::sb_env as sb_env_op;
 use sb_fs::file_system::DenoCompileFileSystem;
 use sb_graph::emitter::EmitterFactory;
 use sb_graph::import_map::load_import_map;
-use sb_graph::{
-    generate_binary_eszip, include_glob_patterns_in_eszip, EszipPayloadKind, STATIC_FS_PREFIX,
-};
+use sb_graph::{generate_binary_eszip, include_glob_patterns_in_eszip, EszipPayloadKind};
 use sb_module_loader::standalone::create_module_loader_for_standalone_from_eszip_kind;
 use sb_module_loader::RuntimeProviders;
 use sb_node::deno_node;
@@ -229,6 +227,7 @@ impl DenoRuntime {
             ..
         } = opts;
 
+        // TODO(Nyannyacha): Make sure `service_path` is an absolute path first.
         let base_dir_path = std::env::current_dir().map(|p| p.join(&service_path))?;
         let base_url = Url::from_directory_path(&base_dir_path).unwrap();
 
@@ -307,9 +306,9 @@ impl DenoRuntime {
             include_glob_patterns_in_eszip(
                 static_patterns.iter().map(|s| s.as_str()).collect(),
                 &mut eszip,
-                Some(STATIC_FS_PREFIX.to_string()),
+                &base_dir_path,
             )
-            .await;
+            .await?;
 
             EszipPayloadKind::Eszip(eszip)
         };
