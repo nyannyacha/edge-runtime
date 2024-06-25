@@ -15,9 +15,11 @@ use std::sync::Arc;
 use url::Url;
 
 pub mod file_system;
-mod rt;
 pub mod static_fs;
 pub mod virtual_fs;
+pub mod s3_fs;
+
+mod rt;
 
 pub struct VfsOpts {
     pub npm_resolver: Arc<dyn CliNpmResolver>,
