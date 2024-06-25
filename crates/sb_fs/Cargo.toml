@@ -14,6 +14,8 @@ sb_core = { version = "0.1.0", path = "../sb_core" }
 sb_node = { version = "0.1.0", path = "../node" }
 sb_npm = { version = "0.1.0", path = "../npm" }
 sb_eszip_shared = { version = "0.1.0", path = "../sb_eszip_shared" }
+aws-sdk-s3 = { version = "1.23" }
+aws-config = { version = "1.2" }
 deno_semver.workspace = true
 anyhow.workspace = true
 deno_core.workspace = true
