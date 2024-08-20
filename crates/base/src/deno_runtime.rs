@@ -6,14 +6,14 @@ use crate::utils::units::{bytes_to_display, mib_to_bytes};
 use anyhow::{anyhow, bail, Context, Error};
 use base_mem_check::{MemCheckState, WorkerHeapStatistics};
 use cooked_waker::{IntoWaker, WakeRef};
-use cpu_timer::get_thread_time;
+use cpu_timer::{get_thread_time, CPUTimer};
 use ctor::ctor;
 use deno_core::error::AnyError;
 use deno_core::url::Url;
 use deno_core::v8::{GCCallbackFlags, GCType, HeapStatistics, Isolate};
 use deno_core::{
-    located_script_name, serde_json, JsRuntime, ModuleCodeString, ModuleId, PollEventLoopOptions,
-    RuntimeOptions,
+    located_script_name, serde_json, FastString, JsRuntime, ModuleCodeString, ModuleId,
+    PollEventLoopOptions, RuntimeOptions,
 };
 use deno_http::DefaultHttpPropertyExtractor;
 use deno_tls::deno_native_certs::load_native_certs;
@@ -21,6 +21,7 @@ use deno_tls::rustls::RootCertStore;
 use deno_tls::RootCertStoreProvider;
 use futures_util::future::poll_fn;
 use futures_util::task::AtomicWaker;
+use futures_util::FutureExt;
 use log::{error, trace};
 use once_cell::sync::{Lazy, OnceCell};
 use sb_core::conn_sync::DenoRuntimeDropToken;
@@ -35,10 +36,11 @@ use std::ffi::c_void;
 use std::fmt;
 use std::future::Future;
 use std::marker::PhantomData;
+use std::mem::transmute;
+use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 use std::task::Poll;
-use std::thread::ThreadId;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::interval;
@@ -198,7 +200,10 @@ pub struct DenoRuntime<RuntimeContext = ()> {
     pub(crate) is_terminated: Arc<AtomicFlag>,
     pub(crate) is_found_inspector_session: Arc<AtomicFlag>,
 
-    main_module_id: ModuleId,
+    main_module_url: Url,
+    main_module_code: Option<FastString>,
+    main_module_id: Option<ModuleId>,
+
     maybe_inspector: Option<Inspector>,
 
     mem_check: Arc<MemCheck>,
@@ -410,7 +415,7 @@ where
             npm_resolver,
             vfs,
             module_loader,
-            module_code,
+            module_code: main_module_code,
             static_files,
             npm_snapshot,
             vfs_path,
@@ -429,8 +434,6 @@ where
                 Arc::new(DenoCompileFileSystem::from_rc(vfs)) as Arc<dyn deno_fs::FileSystem>
             }
         };
-
-        let mod_code = module_code;
 
         let extensions = vec![
             sb_core_permissions::init_ops(net_access_disabled, allow_net),
@@ -618,16 +621,6 @@ where
             op_state.put(DenoRuntimeDropToken(drop_token.clone()))
         }
 
-        let main_module_id = {
-            if let Some(code) = mod_code {
-                js_runtime
-                    .load_main_es_module_from_code(&main_module_url, code)
-                    .await?
-            } else {
-                js_runtime.load_main_es_module(&main_module_url).await?
-            }
-        };
-
         if is_user_worker {
             drop(base_rt::SUPERVISOR_RT.spawn({
                 let drop_token = drop_token.clone();
@@ -663,7 +656,10 @@ where
             is_terminated: Arc::default(),
             is_found_inspector_session: Arc::default(),
 
-            main_module_id,
+            main_module_url,
+            main_module_code,
+            main_module_id: None,
+
             maybe_inspector,
 
             mem_check,
@@ -673,12 +669,90 @@ where
         })
     }
 
+    async fn init(&mut self) -> Result<(), Error> {
+        if self.main_module_id.is_none() {
+            struct Reenterable<'l, Fut> {
+                runtime: &'l mut JsRuntime,
+                inner: Fut,
+            }
+
+            impl<Fut: Future> Future for Reenterable<'_, Fut> {
+                type Output = Fut::Output;
+
+                fn poll(
+                    self: std::pin::Pin<&mut Self>,
+                    cx: &mut std::task::Context<'_>,
+                ) -> Poll<Self::Output> {
+                    unsafe {
+                        let this = self.get_unchecked_mut();
+                        let mut js_runtime = scopeguard::guard(&mut this.runtime, |v| {
+                            v.v8_isolate().exit();
+                        });
+
+                        js_runtime.v8_isolate().enter();
+                        Pin::new_unchecked(&mut this.inner).poll(cx)
+                    }
+                }
+            }
+
+            impl<'l, R> Reenterable<'l, R>
+            where
+                R: Future<Output = Result<usize, Error>>,
+            {
+                fn new<F>(mut runtime: &'l mut JsRuntime, func: F) -> Reenterable<R>
+                where
+                    F: FnOnce(&'static mut JsRuntime) -> R,
+                {
+                    let inner = unsafe {
+                        let mut js_runtime = scopeguard::guard(&mut runtime, |v| {
+                            v.v8_isolate().exit();
+                        });
+
+                        js_runtime.v8_isolate().enter();
+                        func(transmute::<&mut JsRuntime, &mut JsRuntime>(
+                            &mut ***js_runtime,
+                        ))
+                    };
+
+                    Reenterable { runtime, inner }
+                }
+            }
+
+            let url = self.main_module_url.clone();
+            let id = Reenterable::new(&mut self.js_runtime, {
+                let code = self.main_module_code.take();
+
+                |runtime| {
+                    if let Some(code) = code {
+                        runtime
+                            .load_main_es_module_from_code(&url, code)
+                            .boxed_local()
+                    } else {
+                        runtime.load_main_es_module(&url).boxed_local()
+                    }
+                }
+            })
+            .await?;
+
+            self.main_module_id = Some(id);
+        }
+
+        Ok(())
+    }
+
     pub async fn run(
         &mut self,
         duplex_stream_rx: mpsc::UnboundedReceiver<DuplexStreamEntry>,
         maybe_cpu_usage_metrics_tx: Option<mpsc::UnboundedSender<CPUUsageMetrics>>,
         name: Option<String>,
     ) -> (Result<(), Error>, i64) {
+        if let Err(err) = self.init().await {
+            return (Err(err), 0);
+        }
+        let Some(main_module_id) = self.main_module_id else {
+            return (Err(anyhow!("failed to get main module id")), 0);
+        };
+
         {
             let op_state_rc = self.js_runtime.op_state();
             let mut op_state = op_state_rc.borrow_mut();
@@ -696,9 +770,6 @@ where
             v.raise();
         });
 
-        // NOTE: This is unnecessary on the LIFO task scheduler that can't steal
-        // the task from the other threads.
-        let current_thread_id = std::thread::current().id();
         let mut accumulated_cpu_time_ns = 0i64;
 
         let inspector = self.inspector();
@@ -737,10 +808,9 @@ where
             });
 
             with_cpu_metrics_guard(
-                current_thread_id,
                 &maybe_cpu_usage_metrics_tx,
                 &mut accumulated_cpu_time_ns,
-                || js_runtime.mod_evaluate(self.main_module_id),
+                || js_runtime.mod_evaluate(main_module_id),
             )
         };
 
@@ -753,7 +823,6 @@ where
         {
             let event_loop_fut = self.run_event_loop(
                 name.as_deref(),
-                current_thread_id,
                 &maybe_cpu_usage_metrics_tx,
                 &mut accumulated_cpu_time_ns,
             );
@@ -786,7 +855,6 @@ where
         if let Err(err) = self
             .run_event_loop(
                 name.as_deref(),
-                current_thread_id,
                 &maybe_cpu_usage_metrics_tx,
                 &mut accumulated_cpu_time_ns,
             )
@@ -804,7 +872,6 @@ where
     fn run_event_loop<'l>(
         &'l mut self,
         name: Option<&'l str>,
-        #[allow(unused_variables)] current_thread_id: ThreadId,
         maybe_cpu_usage_metrics_tx: &'l Option<mpsc::UnboundedSender<CPUUsageMetrics>>,
         accumulated_cpu_time_ns: &'l mut i64,
     ) -> impl Future<Output = Result<(), AnyError>> + 'l {
@@ -816,12 +883,6 @@ where
         let mem_check_state = is_user_worker.then(|| self.mem_check.clone());
 
         poll_fn(move |cx| {
-            // INVARIANT: Only can steal current task by other threads when LIFO
-            // task scheduler heuristic disabled. Turning off the heuristic is
-            // unstable now, so it's not considered.
-            #[cfg(debug_assertions)]
-            assert_eq!(current_thread_id, std::thread::current().id());
-
             let waker = cx.waker();
             let woked = global_waker.take().is_none();
             let thread_id = std::thread::current().id();
@@ -831,11 +892,8 @@ where
             let mut this = self.get_v8_tls_guard();
 
             let js_runtime = &mut this.js_runtime;
-            let cpu_metrics_guard = get_cpu_metrics_guard(
-                thread_id,
-                maybe_cpu_usage_metrics_tx,
-                accumulated_cpu_time_ns,
-            );
+            let cpu_metrics_guard =
+                get_cpu_metrics_guard(maybe_cpu_usage_metrics_tx, accumulated_cpu_time_ns);
 
             let wait_for_inspector = if has_inspector {
                 let inspector = js_runtime.inspector();
@@ -975,7 +1033,6 @@ fn get_current_cpu_time_ns() -> Result<i64, Error> {
 }
 
 fn with_cpu_metrics_guard<'l, F, R>(
-    thread_id: ThreadId,
     maybe_cpu_usage_metrics_tx: &'l Option<mpsc::UnboundedSender<CPUUsageMetrics>>,
     accumulated_cpu_time_ns: &'l mut i64,
     work_fn: F,
@@ -983,43 +1040,48 @@ fn with_cpu_metrics_guard<'l, F, R>(
 where
     F: FnOnce() -> R,
 {
-    let _cpu_metrics_guard = get_cpu_metrics_guard(
-        thread_id,
-        maybe_cpu_usage_metrics_tx,
-        accumulated_cpu_time_ns,
-    );
+    let _cpu_metrics_guard =
+        get_cpu_metrics_guard(maybe_cpu_usage_metrics_tx, accumulated_cpu_time_ns);
 
     work_fn()
 }
 
 fn get_cpu_metrics_guard<'l>(
-    thread_id: ThreadId,
     maybe_cpu_usage_metrics_tx: &'l Option<mpsc::UnboundedSender<CPUUsageMetrics>>,
     accumulated_cpu_time_ns: &'l mut i64,
-) -> scopeguard::ScopeGuard<(), impl FnOnce(()) + 'l> {
-    let send_cpu_metrics_fn = move |metric: CPUUsageMetrics| {
-        if let Some(cpu_metric_tx) = maybe_cpu_usage_metrics_tx.as_ref() {
-            let _ = cpu_metric_tx.send(metric);
-        }
+) -> scopeguard::ScopeGuard<(), Box<dyn FnOnce(()) + 'l>> {
+    let Some(cpu_usage_metrics_tx) = maybe_cpu_usage_metrics_tx.as_ref() else {
+        return scopeguard::guard((), Box::new(|_| {}));
     };
 
-    send_cpu_metrics_fn(CPUUsageMetrics::Enter(thread_id));
+    let current_thread_id = std::thread::current().id();
+    let send_cpu_metrics_fn = move |metric: CPUUsageMetrics| {
+        let _ = cpu_usage_metrics_tx.send(metric);
+    };
+
+    send_cpu_metrics_fn(CPUUsageMetrics::Enter(
+        current_thread_id,
+        CPUTimer::get_or_init().unwrap(),
+    ));
 
     let current_cpu_time_ns = get_current_cpu_time_ns().unwrap();
 
-    scopeguard::guard((), move |_| {
-        debug_assert_eq!(thread_id, std::thread::current().id());
+    scopeguard::guard(
+        (),
+        Box::new(move |_| {
+            debug_assert_eq!(current_thread_id, std::thread::current().id());
 
-        let cpu_time_after_drop_ns = get_current_cpu_time_ns().unwrap_or(current_cpu_time_ns);
-        let diff_cpu_time_ns = cpu_time_after_drop_ns - current_cpu_time_ns;
+            let cpu_time_after_drop_ns = get_current_cpu_time_ns().unwrap_or(current_cpu_time_ns);
+            let diff_cpu_time_ns = cpu_time_after_drop_ns - current_cpu_time_ns;
 
-        *accumulated_cpu_time_ns += diff_cpu_time_ns;
+            *accumulated_cpu_time_ns += diff_cpu_time_ns;
 
-        send_cpu_metrics_fn(CPUUsageMetrics::Leave(CPUUsage {
-            accumulated: *accumulated_cpu_time_ns,
-            diff: diff_cpu_time_ns,
-        }));
-    })
+            send_cpu_metrics_fn(CPUUsageMetrics::Leave(CPUUsage {
+                accumulated: *accumulated_cpu_time_ns,
+                diff: diff_cpu_time_ns,
+            }));
+        }),
+    )
 }
 
 fn set_v8_flags() {
@@ -1315,7 +1377,10 @@ mod test {
         .await;
 
         let mut rt = runtime.unwrap();
-        let main_mod_ev = rt.js_runtime.mod_evaluate(rt.main_module_id);
+
+        rt.init().await.unwrap();
+
+        let main_mod_ev = rt.js_runtime.mod_evaluate(rt.main_module_id.unwrap());
         let _ = rt
             .js_runtime
             .run_event_loop(PollEventLoopOptions::default())
@@ -1379,7 +1444,10 @@ mod test {
         .await;
 
         let mut rt = runtime.unwrap();
-        let main_mod_ev = rt.js_runtime.mod_evaluate(rt.main_module_id);
+
+        rt.init().await.unwrap();
+
+        let main_mod_ev = rt.js_runtime.mod_evaluate(rt.main_module_id.unwrap());
         let _ = rt
             .js_runtime
             .run_event_loop(PollEventLoopOptions::default())
@@ -1486,7 +1554,11 @@ mod test {
             .build()
             .await;
 
-        let _main_mod_ev = main_rt.js_runtime.mod_evaluate(main_rt.main_module_id);
+        main_rt.init().await.unwrap();
+
+        let _main_mod_ev = main_rt
+            .js_runtime
+            .mod_evaluate(main_rt.main_module_id.unwrap());
         let _ = main_rt
             .js_runtime
             .run_event_loop(PollEventLoopOptions::default())

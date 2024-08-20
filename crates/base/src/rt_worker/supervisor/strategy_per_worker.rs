@@ -1,13 +1,13 @@
-use std::{future::pending, sync::atomic::Ordering, time::Duration};
-
-#[cfg(debug_assertions)]
 use std::thread::ThreadId;
+use std::{future::pending, sync::atomic::Ordering, time::Duration};
 
 use event_worker::events::ShutdownReason;
 use log::error;
 use sb_workers::context::{Timing, TimingStatus, UserWorkerMsgs};
+use tokio::sync::mpsc;
+use tracing::{debug_span, Instrument};
 
-use crate::rt_worker::supervisor::{wait_cpu_alarm, CPUUsage, Tokens};
+use crate::rt_worker::supervisor::{CPUUsage, Tokens};
 
 use super::{handle_interrupt, Arguments, CPUUsageMetrics, IsolateInterruptData};
 
@@ -17,7 +17,6 @@ pub async fn supervise(args: Arguments) -> (ShutdownReason, i64) {
         runtime_opts,
         timing,
         mut memory_limit_rx,
-        cpu_timer,
         cpu_timer_param,
         cpu_usage_metrics_rx,
         pool_msg_tx,
@@ -35,19 +34,18 @@ pub async fn supervise(args: Arguments) -> (ShutdownReason, i64) {
         req: (_, mut req_end_rx),
     } = timing.unwrap_or_default();
 
-    let (cpu_timer, mut cpu_alarms_rx) = cpu_timer.unzip();
     let (soft_limit_ms, hard_limit_ms) = cpu_timer_param.limits();
 
     let guard = scopeguard::guard(is_retired, |v| {
         v.raise();
     });
 
-    #[cfg(debug_assertions)]
     let mut current_thread_id = Option::<ThreadId>::None;
 
     let mut is_worker_entered = false;
     let mut cpu_usage_metrics_rx = cpu_usage_metrics_rx.unwrap();
     let mut cpu_usage_ms = 0i64;
+    let mut cpu_timer_rx = None::<mpsc::UnboundedReceiver<()>>;
 
     let mut cpu_time_soft_limit_reached = false;
     let mut wall_clock_alerts = 0;
@@ -112,20 +110,24 @@ pub async fn supervise(args: Arguments) -> (ShutdownReason, i64) {
 
             Some(metrics) = cpu_usage_metrics_rx.recv() => {
                 match metrics {
-                    CPUUsageMetrics::Enter(_thread_id) => {
-                        // INVARIANT: Thread ID MUST equal with previously captured
-                        // Thread ID.
-                        #[cfg(debug_assertions)]
-                        {
-                            assert!(current_thread_id.unwrap_or(_thread_id) == _thread_id);
-                            current_thread_id = Some(_thread_id);
-                        }
-
+                    CPUUsageMetrics::Enter(thread_id, timer) => {
                         assert!(!is_worker_entered);
                         is_worker_entered = true;
 
+                        let span = debug_span!(
+                            "enter",
+                            thread_id_was = ?current_thread_id,
+                            thread_id_now = ?thread_id,
+                        );
+
+                        let _enter = span.enter();
+
+                        current_thread_id = Some(thread_id);
+
                         if !cpu_timer_param.is_disabled() {
-                            if let Some(Err(err)) = cpu_timer.as_ref().map(|it| it.reset()) {
+                            cpu_timer_rx = Some(timer.set_channel().in_current_span().await);
+
+                            if let Err(err) = cpu_timer_param.reset(&timer) {
                                 error!("can't reset cpu timer: {}", err);
                             }
                         }
@@ -158,7 +160,13 @@ pub async fn supervise(args: Arguments) -> (ShutdownReason, i64) {
                 }
             }
 
-            Some(_) = wait_cpu_alarm(cpu_alarms_rx.as_mut()) => {
+            _ = async {
+                if let Some(timer) = cpu_timer_rx.as_mut() {
+                    let _ = timer.recv().await;
+                } else {
+                    pending::<()>().await
+                }
+            } => {
                 if is_worker_entered {
                     if !cpu_time_soft_limit_reached {
                         early_retire_fn();

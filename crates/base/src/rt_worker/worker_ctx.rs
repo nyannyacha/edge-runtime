@@ -7,7 +7,6 @@ use crate::rt_worker::worker::{Worker, WorkerHandler};
 use crate::rt_worker::worker_pool::WorkerPool;
 use anyhow::{anyhow, bail, Error};
 use base_mem_check::MemCheckState;
-use cpu_timer::CPUTimer;
 use deno_config::JsxImportSourceConfig;
 use deno_core::{InspectorSessionProxy, LocalInspectorSession};
 use event_worker::events::{
@@ -258,7 +257,7 @@ pub fn create_supervisor(
     cancel: Option<CancellationToken>,
     timing: Option<Timing>,
     termination_token: Option<TerminationToken>,
-) -> Result<(Option<CPUTimer>, CancellationToken), Error> {
+) -> Result<CancellationToken, Error> {
     let (memory_limit_tx, memory_limit_rx) = mpsc::unbounded_channel();
     let (waker, thread_safe_handle) = {
         let js_runtime = &mut worker_runtime.js_runtime;
@@ -322,17 +321,11 @@ pub fn create_supervisor(
         }
     });
 
-    // Note: CPU timer must be started in the same thread as the worker runtime
-
     let cpu_timer_param =
         CPUTimerParam::new(conf.cpu_time_soft_limit_ms, conf.cpu_time_hard_limit_ms);
 
-    let (maybe_cpu_timer, maybe_cpu_alarms_rx) =
-        cpu_timer_param.get_cpu_timer(supervisor_policy).unzip();
-
     drop({
         let _rt_guard = base_rt::SUPERVISOR_RT.enter();
-        let maybe_cpu_timer_inner = maybe_cpu_timer.clone();
         let supervise_cancel_token_inner = supervise_cancel_token.clone();
 
         tokio::spawn(async move {
@@ -342,7 +335,6 @@ pub fn create_supervisor(
             let args = supervisor::Arguments {
                 key,
                 runtime_opts: conf.clone(),
-                cpu_timer: maybe_cpu_timer_inner.zip(maybe_cpu_alarms_rx),
                 cpu_usage_metrics_rx,
                 cpu_timer_param,
                 supervisor_policy,
@@ -505,7 +497,7 @@ pub fn create_supervisor(
         })
     });
 
-    Ok((maybe_cpu_timer, supervise_cancel_token))
+    Ok(supervise_cancel_token)
 }
 
 pub struct CreateWorkerArgs(

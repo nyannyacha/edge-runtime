@@ -1,25 +1,26 @@
+use std::thread::ThreadId;
 use std::{future::pending, sync::atomic::Ordering, time::Duration};
 
-#[cfg(debug_assertions)]
-use std::thread::ThreadId;
-
+use cpu_timer::CPUTimer;
 use event_worker::events::ShutdownReason;
 use log::error;
 use sb_workers::context::{Timing, TimingStatus, UserWorkerMsgs};
+use tokio::sync::mpsc;
 use tokio::time::Instant;
+use tracing::{debug_span, instrument, Instrument};
 
 use crate::rt_worker::supervisor::{
-    handle_interrupt, wait_cpu_alarm, CPUUsage, CPUUsageMetrics, IsolateInterruptData, Tokens,
+    handle_interrupt, CPUUsage, CPUUsageMetrics, IsolateInterruptData, Tokens,
 };
 
 use super::Arguments;
 
+#[instrument(level = "debug", skip(args), fields(key = %args.key))]
 pub async fn supervise(args: Arguments, oneshot: bool) -> (ShutdownReason, i64) {
     let Arguments {
         key,
         runtime_opts,
         timing,
-        cpu_timer,
         cpu_timer_param,
         cpu_usage_metrics_rx,
         mut memory_limit_rx,
@@ -39,20 +40,20 @@ pub async fn supervise(args: Arguments, oneshot: bool) -> (ShutdownReason, i64) 
         ..
     } = timing.unwrap_or_default();
 
-    let (cpu_timer, mut cpu_alarms_rx) = cpu_timer.unzip();
     let (_, hard_limit_ms) = cpu_timer_param.limits();
 
     let _guard = scopeguard::guard(is_retired, |v| {
         v.raise();
     });
 
-    #[cfg(debug_assertions)]
     let mut current_thread_id = Option::<ThreadId>::None;
+    let mut cpu_timer = Option::<CPUTimer>::None;
 
     let mut is_worker_entered = false;
     let mut cpu_usage_metrics_rx = cpu_usage_metrics_rx.unwrap();
     let mut cpu_usage_ms = 0i64;
     let mut cpu_usage_accumulated_ms = 0i64;
+    let mut cpu_timer_rx = None::<mpsc::UnboundedReceiver<()>>;
 
     let mut complete_reason = None::<ShutdownReason>;
     let mut req_ack_count = 0usize;
@@ -88,23 +89,29 @@ pub async fn supervise(args: Arguments, oneshot: bool) -> (ShutdownReason, i64) 
 
             Some(metrics) = cpu_usage_metrics_rx.recv() => {
                 match metrics {
-                    CPUUsageMetrics::Enter(_thread_id) => {
-                        // INVARIANT: Thread ID MUST equal with previously captured
-                        // Thread ID.
-                        #[cfg(debug_assertions)]
-                        {
-                            assert!(current_thread_id.unwrap_or(_thread_id) == _thread_id);
-                            current_thread_id = Some(_thread_id);
-                        }
-
+                    CPUUsageMetrics::Enter(thread_id, timer) => {
                         assert!(!is_worker_entered);
                         is_worker_entered = true;
 
+                        let span = debug_span!(
+                            "enter",
+                            thread_id_was = ?current_thread_id,
+                            thread_id_now = ?thread_id,
+                        );
+
+                        let _enter = span.enter();
+
+                        current_thread_id = Some(thread_id);
+
                         if !cpu_timer_param.is_disabled() {
-                            if let Some(Err(err)) = cpu_timer.as_ref().map(|it| it.reset()) {
+                            cpu_timer_rx = Some(timer.set_channel().in_current_span().await);
+
+                            if let Err(err) = cpu_timer_param.reset(&timer) {
                                 error!("can't reset cpu timer: {}", err);
                             }
                         }
+
+                        cpu_timer = Some(timer);
                     }
 
                     CPUUsageMetrics::Leave(CPUUsage { accumulated, diff }) => {
@@ -120,15 +127,23 @@ pub async fn supervise(args: Arguments, oneshot: bool) -> (ShutdownReason, i64) 
                                 complete_reason = Some(ShutdownReason::CPUTime);
                             }
 
-                            if let Some(Err(err)) = cpu_timer.as_ref().map(|it| it.reset()) {
+                            if let Some(Err(err)) = cpu_timer.as_ref().map(|it| cpu_timer_param.reset(it)) {
                                 error!("can't reset cpu timer: {}", err);
                             }
                         }
+
+                        cpu_timer = None;
                     }
                 }
             }
 
-            Some(_) = wait_cpu_alarm(cpu_alarms_rx.as_mut()) => {
+            _ = async {
+                if let Some(timer) = cpu_timer_rx.as_mut() {
+                    let _ = timer.recv().await;
+                } else {
+                    pending::<()>().await
+                }
+            } => {
                 if is_worker_entered && req_start_ack {
                     error!("CPU time limit reached: isolate: {:?}", key);
                     complete_reason = Some(ShutdownReason::CPUTime);
@@ -142,10 +157,8 @@ pub async fn supervise(args: Arguments, oneshot: bool) -> (ShutdownReason, i64) 
 
                 notify.notify_one();
 
-                if let Some(cpu_timer) = cpu_timer.as_ref() {
-                    if let Err(ex) = cpu_timer.reset() {
-                        error!("cannot reset the cpu timer: {}", ex);
-                    }
+                if let Some(Err(err)) = cpu_timer.as_ref().map(|it| cpu_timer_param.reset(it)) {
+                    error!("cannot reset the cpu timer: {}", err);
                 }
 
                 cpu_usage_ms = 0;

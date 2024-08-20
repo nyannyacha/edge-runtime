@@ -3,16 +3,14 @@ pub mod strategy_per_worker;
 
 use std::sync::Arc;
 
-use cpu_timer::{CPUAlarmVal, CPUTimer};
+use anyhow::Error;
+use cpu_timer::CPUTimer;
 use deno_core::v8::IsolateHandle;
 use enum_as_inner::EnumAsInner;
 use futures_util::task::AtomicWaker;
 use log::error;
 use sb_workers::context::{Timing, UserWorkerMsgs, UserWorkerRuntimeOpts};
-use tokio::sync::{
-    mpsc::{self, UnboundedReceiver},
-    oneshot,
-};
+use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -75,41 +73,16 @@ impl CPUTimerParam {
         }
     }
 
-    pub fn get_cpu_timer(
-        &self,
-        policy: SupervisorPolicy,
-    ) -> Option<(CPUTimer, UnboundedReceiver<()>)> {
-        let (cpu_alarms_tx, cpu_alarms_rx) = mpsc::unbounded_channel::<()>();
-
-        if self.is_disabled() {
-            return None;
-        }
-
-        Some((
-            CPUTimer::start(
-                if policy.is_per_worker() {
-                    self.soft_limit_ms
-                } else {
-                    self.hard_limit_ms
-                },
-                if policy.is_per_request() {
-                    0
-                } else {
-                    self.hard_limit_ms
-                },
-                CPUAlarmVal { cpu_alarms_tx },
-            )
-            .ok()?,
-            cpu_alarms_rx,
-        ))
-    }
-
     pub fn limits(&self) -> (u64, u64) {
         (self.soft_limit_ms, self.hard_limit_ms)
     }
 
     pub fn is_disabled(&self) -> bool {
         self.soft_limit_ms == 0 && self.hard_limit_ms == 0
+    }
+
+    pub fn reset(&self, cpu_timer: &CPUTimer) -> Result<(), Error> {
+        cpu_timer.reset(self.soft_limit_ms, self.hard_limit_ms)
     }
 }
 
@@ -121,7 +94,6 @@ pub struct Tokens {
 pub struct Arguments {
     pub key: Uuid,
     pub runtime_opts: UserWorkerRuntimeOpts,
-    pub cpu_timer: Option<(CPUTimer, mpsc::UnboundedReceiver<()>)>,
     pub cpu_usage_metrics_rx: Option<mpsc::UnboundedReceiver<CPUUsageMetrics>>,
     pub cpu_timer_param: CPUTimerParam,
     pub supervisor_policy: SupervisorPolicy,
@@ -141,13 +113,6 @@ pub struct CPUUsage {
 
 #[derive(EnumAsInner)]
 pub enum CPUUsageMetrics {
-    Enter(std::thread::ThreadId),
+    Enter(std::thread::ThreadId, CPUTimer),
     Leave(CPUUsage),
-}
-
-async fn wait_cpu_alarm(maybe_alarm: Option<&mut UnboundedReceiver<()>>) -> Option<()> {
-    match maybe_alarm {
-        Some(alarm) => Some(alarm.recv().await?),
-        None => None,
-    }
 }
