@@ -295,6 +295,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-scoped"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4042078ea593edffc452eef14e99fdb2b120caa4ad9618bcdeabc4a023b98740"
+dependencies = [
+ "futures",
+ "pin-project",
+ "tokio",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.77"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -355,6 +366,7 @@ name = "base"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-scoped",
  "async-trait",
  "async-tungstenite",
  "base_mem_check",
@@ -499,7 +511,12 @@ name = "base_rt"
 version = "0.1.0"
 dependencies = [
  "deno_core",
+ "deno_unsync",
+ "event_worker",
+ "futures-util",
+ "nohash-hasher",
  "once_cell",
+ "scopeguard",
  "tokio",
  "tokio-util",
 ]
@@ -866,6 +883,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base",
+ "base_rt",
  "clap",
  "deno_core",
  "deno_manifest",
@@ -3744,6 +3762,12 @@ dependencies = [
  "pin-utils",
  "static_assertions",
 ]
+
+[[package]]
+name = "nohash-hasher"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
 
 [[package]]
 name = "nom"
@@ -6932,8 +6956,6 @@ dependencies = [
 [[package]]
 name = "v8"
 version = "0.97.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb417c2cd20684f18b185085c876d379318893461c17d319948a0a5f221f0b50"
 dependencies = [
  "bindgen",
  "bitflags 2.5.0",
