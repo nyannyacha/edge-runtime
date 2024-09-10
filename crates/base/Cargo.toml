@@ -77,6 +77,7 @@ tracing.workspace = true
 
 reqwest_v011 = { package = "reqwest", version = "0.11", features = ["stream", "json", "multipart"] }
 tls-listener = { version = "0.10", features = ["rustls"] }
+async-scoped = { version = "0.9.0", features = ["use-tokio"] }
 flume = "0.11.0"
 cooked-waker = "5"
 tokio-rustls = "0.25.0"

@@ -12,6 +12,7 @@ path = "src/main.rs"
 deno_core.workspace = true
 
 base = { version = "0.1.0", path = "../base" }
+base_rt = { version = "0.1.0", path = "../base_rt" }
 deno_manifest = { path = "../deno_manifest" }
 
 sb_graph = { version = "0.1.0", path = "../sb_graph" }

@@ -48,6 +48,7 @@ deno_semver = "=0.5.6"
 deno_cache_dir = "=0.10.0"
 deno_lockfile = "0.20.0"
 deno_permissions = "0.21.0"
+deno_unsync = "0.3.10"
 
 # crypto
 hkdf = "0.12.3"
@@ -139,6 +140,7 @@ tempfile = "3"
 # If the PR is merged upstream, remove the line below.
 deno_core = { git = "https://github.com/supabase/deno_core", branch = "293-supabase" }
 eszip = { git = "https://github.com/supabase/eszip", branch = "fix-pub-vis-0-72-2" }
+v8 = { version = "0.97.1", path = "git/rusty_v8"}
 
 [profile.dind]
 inherits = "dev"
