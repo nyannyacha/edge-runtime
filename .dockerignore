@@ -2,6 +2,7 @@ target/
 k6/
 examples/
 assets/
+git/
 .vscodes/
 .github/
 
