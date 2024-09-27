@@ -1,24 +1,23 @@
 [workspace]
 resolver = "2"
 members = [
-  "./crates/base",
-  "./crates/base_rt",
-  "./crates/base_mem_check",
+  "./crates/runtime",
+  "./crates/runtime_base",
   "./crates/http_utils",
   "./crates/cli",
   "./crates/deno_manifest",
-  "./crates/sb_workers",
-  "./crates/sb_env",
-  "./crates/sb_core",
-  "./crates/sb_os",
   "./crates/cpu_timer",
-  "./crates/event_worker",
   "./crates/npm",
   "./crates/npm_cache",
-  "./crates/sb_graph",
-  "./crates/sb_module_loader",
-  "./crates/sb_fs",
-  "./crates/sb_ai"
+  "./crates/graph",
+  "./crates/module_loader",
+  "./crates/ext/workers",
+  "./crates/ext/env",
+  "./crates/ext/core",
+  "./crates/ext/os",
+  "./crates/ext/event_worker",
+  "./crates/ext/fs",
+  "./crates/ext/ai",
 ]
 
 [workspace.dependencies]
@@ -135,10 +134,10 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 rkyv = "0.7"
 tempfile = "3"
+nohash-hasher = "0.2"
+clap = "4.0.29"
 
 [patch.crates-io]
-# If the PR is merged upstream, remove the line below.
-deno_core = { git = "https://github.com/supabase/deno_core", branch = "293-supabase" }
 eszip = { git = "https://github.com/supabase/eszip", branch = "fix-pub-vis-0-72-2" }
 v8 = { version = "0.97.1", path = "git/rusty_v8"}
 
