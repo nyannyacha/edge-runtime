@@ -11,11 +11,10 @@ path = "src/main.rs"
 [dependencies]
 deno_core.workspace = true
 
-base = { version = "0.1.0", path = "../base" }
-base_rt = { version = "0.1.0", path = "../base_rt" }
+runtime = { version = "0.1.0", path = "../runtime" }
 deno_manifest = { path = "../deno_manifest" }
 
-sb_graph = { version = "0.1.0", path = "../sb_graph" }
+graph = { version = "0.1.0", path = "../graph" }
 
 anyhow.workspace = true
 log.workspace = true
@@ -23,8 +22,8 @@ tokio.workspace = true
 glob.workspace = true
 once_cell.workspace = true
 tracing-subscriber = { workspace = true, optional = true, features = ["env-filter", "tracing-log"] }
+clap = { workspace = true, features = ["cargo", "string", "env", "derive"] }
 
-clap = { version = "4.0.29", features = ["cargo", "string", "env", "derive"] }
 env_logger = "0.10.0"
 
 [features]

@@ -362,88 +362,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "base"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-scoped",
- "async-trait",
- "async-tungstenite",
- "base_mem_check",
- "base_rt",
- "bytes",
- "cooked-waker",
- "cpu_timer",
- "ctor",
- "deno_ast",
- "deno_broadcast_channel",
- "deno_canvas",
- "deno_config",
- "deno_console",
- "deno_core",
- "deno_crypto",
- "deno_fetch",
- "deno_fs",
- "deno_http",
- "deno_io",
- "deno_net",
- "deno_npm",
- "deno_semver",
- "deno_tls",
- "deno_url",
- "deno_web",
- "deno_webgpu",
- "deno_webidl",
- "deno_websocket",
- "enum-as-inner",
- "eszip",
- "event_worker",
- "fastwebsockets",
- "flume",
- "futures-util",
- "http 0.2.11",
- "http 1.0.0",
- "http-body-util",
- "http_utils",
- "httparse",
- "hyper 0.14.28",
- "hyper 1.4.0",
- "hyper-util",
- "import_map",
- "log",
- "monch",
- "notify",
- "once_cell",
- "pin-project",
- "reqwest 0.11.27",
- "rustls-pemfile 2.1.0",
- "sb_ai",
- "sb_core",
- "sb_env",
- "sb_fs",
- "sb_graph",
- "sb_module_loader",
- "sb_node",
- "sb_npm",
- "sb_os",
- "sb_workers",
- "scopeguard",
- "serde",
- "serial_test",
- "thiserror",
- "tls-listener",
- "tokio",
- "tokio-rustls",
- "tokio-util",
- "tracing",
- "tracing-subscriber",
- "tungstenite",
- "url",
- "urlencoding",
- "uuid",
-]
-
-[[package]]
 name = "base16ct"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -497,29 +415,6 @@ name = "base64ct"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
-
-[[package]]
-name = "base_mem_check"
-version = "0.1.0"
-dependencies = [
- "deno_core",
- "serde",
-]
-
-[[package]]
-name = "base_rt"
-version = "0.1.0"
-dependencies = [
- "deno_core",
- "deno_unsync",
- "event_worker",
- "futures-util",
- "nohash-hasher",
- "once_cell",
- "scopeguard",
- "tokio",
- "tokio-util",
-]
 
 [[package]]
 name = "better_scoped_tls"
@@ -882,16 +777,15 @@ name = "cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "base",
- "base_rt",
  "clap",
  "deno_core",
  "deno_manifest",
  "env_logger",
  "glob",
+ "graph",
  "log",
  "once_cell",
- "sb_graph",
+ "runtime",
  "tokio",
  "tracing-subscriber",
 ]
@@ -973,6 +867,7 @@ dependencies = [
  "libc",
  "log",
  "nix",
+ "nohash-hasher",
  "once_cell",
  "signal-hook",
  "signal-hook-tokio",
@@ -1320,7 +1215,8 @@ dependencies = [
 [[package]]
 name = "deno_core"
 version = "0.293.0"
-source = "git+https://github.com/supabase/deno_core?branch=293-supabase#d73dc1e1845d00cc2e8d2a32caf5859cc300386b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca4618658ef613af8978a4bada32231c6c31aeeb9a02b6c58a5df17168a082be"
 dependencies = [
  "anyhow",
  "bincode",
@@ -1595,7 +1491,8 @@ dependencies = [
 [[package]]
 name = "deno_ops"
 version = "0.169.0"
-source = "git+https://github.com/supabase/deno_core?branch=293-supabase#d73dc1e1845d00cc2e8d2a32caf5859cc300386b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2f2d01d8999f283f6c94cfcabe206a599a1471969e8974fc19eb523d8a7b91f"
 dependencies = [
  "proc-macro-rules",
  "proc-macro2",
@@ -2090,16 +1987,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "event_worker"
+name = "eszip_async_trait"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "base_mem_check",
- "deno_core",
- "log",
- "serde",
- "tokio",
- "uuid",
+ "eszip",
 ]
 
 [[package]]
@@ -2549,6 +2440,47 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fdf242682df893b86f33a73828fb09ca4b2d3bb6cc95249707fc684d27484b91"
 dependencies = [
  "bitflags 2.5.0",
+]
+
+[[package]]
+name = "graph"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "dashmap",
+ "deno_ast",
+ "deno_cache_dir",
+ "deno_config",
+ "deno_core",
+ "deno_fs",
+ "deno_graph",
+ "deno_lockfile",
+ "deno_npm",
+ "deno_semver",
+ "deno_web",
+ "enum-as-inner",
+ "eszip",
+ "eszip_async_trait",
+ "futures",
+ "glob",
+ "hashlink",
+ "import_map",
+ "log",
+ "npm",
+ "npm_cache",
+ "once_cell",
+ "pathdiff",
+ "rkyv",
+ "sb_core",
+ "sb_fs",
+ "sb_node",
+ "scopeguard",
+ "serde",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "urlencoding",
 ]
 
 [[package]]
@@ -3629,6 +3561,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "module_loader"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.21.7",
+ "deno_ast",
+ "deno_config",
+ "deno_core",
+ "deno_fs",
+ "deno_npm",
+ "deno_semver",
+ "deno_tls",
+ "eszip",
+ "eszip_async_trait",
+ "futures-util",
+ "graph",
+ "import_map",
+ "log",
+ "monch",
+ "npm",
+ "once_cell",
+ "sb_core",
+ "sb_fs",
+ "sb_node",
+ "serde",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "monch"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3798,6 +3760,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "npm"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "base32",
+ "base64 0.21.7",
+ "bincode",
+ "deno_ast",
+ "deno_config",
+ "deno_core",
+ "deno_fs",
+ "deno_graph",
+ "deno_lockfile",
+ "deno_npm",
+ "deno_semver",
+ "faster-hex",
+ "flate2",
+ "hex",
+ "indexmap",
+ "log",
+ "once_cell",
+ "percent-encoding",
+ "reqwest 0.12.4",
+ "ring",
+ "sb_core",
+ "sb_node",
+ "serde",
+ "tar",
+ "thiserror",
+]
+
+[[package]]
 name = "npm_cache"
 version = "0.1.0"
 dependencies = [
@@ -3808,8 +3802,8 @@ dependencies = [
  "deno_graph",
  "deno_web",
  "log",
+ "npm",
  "sb_core",
- "sb_npm",
  "tokio",
 ]
 
@@ -4811,6 +4805,104 @@ dependencies = [
 ]
 
 [[package]]
+name = "runtime"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-scoped",
+ "async-trait",
+ "async-tungstenite",
+ "bytes",
+ "cooked-waker",
+ "cpu_timer",
+ "ctor",
+ "deno_ast",
+ "deno_broadcast_channel",
+ "deno_canvas",
+ "deno_config",
+ "deno_console",
+ "deno_core",
+ "deno_crypto",
+ "deno_fetch",
+ "deno_fs",
+ "deno_http",
+ "deno_io",
+ "deno_net",
+ "deno_npm",
+ "deno_semver",
+ "deno_tls",
+ "deno_url",
+ "deno_web",
+ "deno_webgpu",
+ "deno_webidl",
+ "deno_websocket",
+ "enum-as-inner",
+ "eszip",
+ "fastwebsockets",
+ "flume",
+ "futures-util",
+ "graph",
+ "http 0.2.11",
+ "http 1.0.0",
+ "http-body-util",
+ "http_utils",
+ "httparse",
+ "hyper 0.14.28",
+ "hyper 1.4.0",
+ "hyper-util",
+ "import_map",
+ "log",
+ "module_loader",
+ "monch",
+ "notify",
+ "npm",
+ "once_cell",
+ "pin-project",
+ "reqwest 0.11.27",
+ "runtime_base",
+ "rustls-pemfile 2.1.0",
+ "sb_ai",
+ "sb_core",
+ "sb_env",
+ "sb_event_worker",
+ "sb_fs",
+ "sb_node",
+ "sb_os",
+ "sb_workers",
+ "scopeguard",
+ "serde",
+ "serial_test",
+ "thiserror",
+ "tls-listener",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+ "tungstenite",
+ "url",
+ "urlencoding",
+ "uuid",
+]
+
+[[package]]
+name = "runtime_base"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "deno_core",
+ "deno_unsync",
+ "futures-util",
+ "nohash-hasher",
+ "once_cell",
+ "scopeguard",
+ "serde",
+ "tokio",
+ "tokio-util",
+ "uuid",
+]
+
+[[package]]
 name = "rusqlite"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5012,8 +5104,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.21.7",
- "base_mem_check",
- "base_rt",
  "bytes",
  "cache_control",
  "chrono",
@@ -5053,6 +5143,7 @@ dependencies = [
  "percent-encoding",
  "rand",
  "ring",
+ "runtime_base",
  "sb_node",
  "scopeguard",
  "serde",
@@ -5073,10 +5164,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "sb_eszip_shared"
+name = "sb_event_worker"
 version = "0.1.0"
 dependencies = [
- "eszip",
+ "anyhow",
+ "deno_core",
+ "log",
+ "runtime_base",
+ "tokio",
 ]
 
 [[package]]
@@ -5092,91 +5187,19 @@ dependencies = [
  "deno_npm",
  "deno_semver",
  "eszip",
+ "eszip_async_trait",
  "futures",
  "import_map",
  "indexmap",
  "log",
+ "npm",
  "once_cell",
  "rkyv",
  "sb_core",
- "sb_eszip_shared",
- "sb_node",
- "sb_npm",
  "serde",
  "thiserror",
  "tokio",
  "url",
-]
-
-[[package]]
-name = "sb_graph"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "dashmap",
- "deno_ast",
- "deno_cache_dir",
- "deno_config",
- "deno_core",
- "deno_fs",
- "deno_graph",
- "deno_lockfile",
- "deno_npm",
- "deno_semver",
- "deno_web",
- "enum-as-inner",
- "eszip",
- "futures",
- "glob",
- "hashlink",
- "import_map",
- "log",
- "npm_cache",
- "once_cell",
- "pathdiff",
- "rkyv",
- "sb_core",
- "sb_eszip_shared",
- "sb_fs",
- "sb_node",
- "sb_npm",
- "scopeguard",
- "serde",
- "tempfile",
- "thiserror",
- "tokio",
- "urlencoding",
-]
-
-[[package]]
-name = "sb_module_loader"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64 0.21.7",
- "deno_ast",
- "deno_config",
- "deno_core",
- "deno_fs",
- "deno_npm",
- "deno_semver",
- "deno_tls",
- "eszip",
- "futures-util",
- "import_map",
- "log",
- "monch",
- "once_cell",
- "sb_core",
- "sb_eszip_shared",
- "sb_fs",
- "sb_graph",
- "sb_node",
- "sb_npm",
- "serde",
- "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -5256,44 +5279,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "sb_npm"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "base32",
- "base64 0.21.7",
- "bincode",
- "deno_ast",
- "deno_config",
- "deno_core",
- "deno_fs",
- "deno_graph",
- "deno_lockfile",
- "deno_npm",
- "deno_semver",
- "faster-hex",
- "flate2",
- "hex",
- "indexmap",
- "log",
- "once_cell",
- "percent-encoding",
- "reqwest 0.12.4",
- "ring",
- "sb_core",
- "sb_node",
- "serde",
- "tar",
- "thiserror",
-]
-
-[[package]]
 name = "sb_os"
 version = "0.1.0"
 dependencies = [
  "deno_core",
  "libc",
- "sb_core",
  "serde",
 ]
 
@@ -5307,13 +5297,14 @@ dependencies = [
  "deno_core",
  "deno_http",
  "enum-as-inner",
- "event_worker",
  "futures-util",
+ "graph",
  "http_utils",
  "hyper 0.14.28",
  "log",
+ "runtime_base",
  "sb_core",
- "sb_graph",
+ "sb_event_worker",
  "scopeguard",
  "serde",
  "thiserror",
@@ -5475,7 +5466,8 @@ dependencies = [
 [[package]]
 name = "serde_v8"
 version = "0.202.0"
-source = "git+https://github.com/supabase/deno_core?branch=293-supabase#d73dc1e1845d00cc2e8d2a32caf5859cc300386b"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d179230030f377d5a788e4adc979262d586d7da286462f98b70da7f8b8a9d0b7"
 dependencies = [
  "num-bigint",
  "serde",

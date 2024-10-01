@@ -5,7 +5,7 @@ use clap::{
     builder::{BoolishValueParser, FalseyValueParser, TypedValueParser},
     crate_version, value_parser, ArgAction, ArgGroup, Command, ValueEnum,
 };
-use sb_graph::Checksum;
+use graph::Checksum;
 
 #[derive(ValueEnum, Default, Clone, Copy)]
 #[repr(u8)]
@@ -212,6 +212,41 @@ fn get_start_command() -> Command {
                 .require_equals(true)
                 .default_value("true")
                 .default_missing_value("true"),
+        )
+        .arg(
+            arg!(--"enable-rt-extra-scheduler" [BOOL])
+            .help("")
+            .num_args(0..=1)
+            .value_parser(BoolishValueParser::new())
+            .require_equals(true)
+            .default_value("false")
+            .default_missing_value("true"),
+        )
+        .arg(
+            arg!(--"rt-extra-scheduler-sample-size" <SIZE>)
+                .help("")
+                .default_value("10")
+                .value_parser(
+                    value_parser!(u32).range(1..64),
+                ),
+        )
+        .arg(
+            arg!(--"rt-extra-scheduler-worker-thread-threshold" <MILLISECONDS>)
+                .help("")
+                .default_value("20")
+                .value_parser(value_parser!(u64)),
+        )
+        .arg(
+            arg!(--"rt-extra-scheduler-blocking-thread-threshold" <MILLISECONDS>)
+                .help("")
+                .default_value("18")
+                .value_parser(value_parser!(u64)),
+        )
+        .arg(
+            arg!(--"rt-extra-scheduler-blocking-thread-recheck-interval" <MILLISECONDS>)
+            .help("")
+            .default_value("1500")
+            .value_parser(value_parser!(u64)),
         )
 }
 

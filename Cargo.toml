@@ -14,6 +14,7 @@ members = [
   "./crates/ext/workers",
   "./crates/ext/env",
   "./crates/ext/core",
+  "./crates/ext/node",
   "./crates/ext/os",
   "./crates/ext/event_worker",
   "./crates/ext/fs",

@@ -1,0 +1,19 @@
+[package]
+name = "sb_event_worker"
+version = "0.1.0"
+authors = ["Supabase <team@supabase.com>"]
+edition = "2021"
+description = "We'll take care of this later"
+license = "MIT"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+deno_core.workspace = true
+
+runtime_base = { version = "0.1.0", path = "../../runtime_base" }
+
+anyhow.workspace = true
+tokio.workspace = true
+log.workspace = true

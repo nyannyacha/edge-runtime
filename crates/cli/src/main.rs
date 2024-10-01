@@ -1,31 +1,30 @@
-mod env;
 mod flags;
+mod var;
 
 #[cfg(not(feature = "tracing"))]
 mod logger;
 
-use anyhow::{anyhow, bail, Error};
-use base::commands::start_server;
+use anyhow::{anyhow, bail, Context, Error};
 
-use base::rt_worker::worker_pool::{SupervisorPolicy, WorkerPoolPolicy};
-use base::server::{ServerFlags, Tls, WorkerEntrypoints};
-use base::{DecoratorType, InspectorOption};
 use clap::ArgMatches;
 use deno_core::url::Url;
-use env::resolve_deno_runtime_env;
 use flags::{get_cli, EszipV2ChecksumKind};
+use graph::emitter::EmitterFactory;
+use graph::import_map::load_import_map;
+use graph::{extract_from_file, generate_binary_eszip, include_glob_patterns_in_eszip};
 use log::warn;
-use sb_graph::emitter::EmitterFactory;
-use sb_graph::import_map::load_import_map;
-use sb_graph::{extract_from_file, generate_binary_eszip, include_glob_patterns_in_eszip};
+use runtime::server::{ServerFlags, Tls};
+use runtime::worker::pool::{SupervisorPolicy, WorkerPoolPolicy};
+use runtime::{DecoratorType, InspectorOption};
 use std::fs::File;
 use std::io::Write;
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 
 fn main() -> Result<(), anyhow::Error> {
-    resolve_deno_runtime_env();
+    var::resolve_deno_runtime_env();
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -67,8 +66,12 @@ fn main() -> Result<(), anyhow::Error> {
         #[allow(clippy::arc_with_non_send_sync)]
         match matches.subcommand() {
             Some(("start", sub_matches)) => {
+                var::resolve_base_rt_sched_var(sub_matches);
+
                 let ip = sub_matches.get_one::<String>("ip").cloned().unwrap();
                 let port = sub_matches.get_one::<u16>("port").copied().unwrap();
+                let addr = SocketAddr::from_str(&format!("{ip}:{port}"))
+                    .context("failed to parse the address to bind the server")?;
 
                 let maybe_tls = if let Some(port) = sub_matches.get_one::<u16>("tls").copied() {
                     let Some((key_slice, cert_slice)) = sub_matches
@@ -185,51 +188,62 @@ fn main() -> Result<(), anyhow::Error> {
                     request_read_timeout_ms: maybe_request_read_timeout,
                 };
 
-                start_server(
-                    ip.as_str(),
-                    port,
-                    maybe_tls,
-                    main_service_path,
-                    event_service_manager_path,
-                    get_decorator_option(sub_matches),
-                    Some(WorkerPoolPolicy::new(
-                        maybe_supervisor_policy,
-                        if let Some(true) = maybe_supervisor_policy
-                            .as_ref()
-                            .map(SupervisorPolicy::is_oneshot)
-                        {
-                            if let Some(parallelism) = maybe_max_parallelism {
-                                if parallelism == 0 || parallelism > 1 {
-                                    warn!(
-                                        "{}",
-                                        concat!(
-                                            "if `oneshot` policy is enabled, the maximum ",
-                                            "parallelism is fixed to `1` as forcibly"
-                                        )
-                                    );
-                                }
-                            }
+                let mut builder = runtime::Builder::new(addr, &main_service_path);
 
-                            Some(1)
-                        } else {
-                            maybe_max_parallelism
-                        },
-                        flags,
-                    )),
-                    import_map_path,
-                    flags,
-                    None,
-                    WorkerEntrypoints {
-                        main: maybe_main_entrypoint,
-                        events: maybe_events_entrypoint,
+                builder.user_worker_policy(WorkerPoolPolicy::new(
+                    maybe_supervisor_policy,
+                    if let Some(true) = maybe_supervisor_policy
+                        .as_ref()
+                        .map(SupervisorPolicy::is_oneshot)
+                    {
+                        if let Some(parallelism) = maybe_max_parallelism {
+                            if parallelism == 0 || parallelism > 1 {
+                                warn!(
+                                    "{}",
+                                    concat!(
+                                        "if `oneshot` policy is enabled, the maximum ",
+                                        "parallelism is fixed to `1` as forcibly"
+                                    )
+                                );
+                            }
+                        }
+
+                        Some(1)
+                    } else {
+                        maybe_max_parallelism
                     },
-                    None,
-                    static_patterns,
-                    maybe_inspector_option,
-                    jsx_specifier,
-                    jsx_module,
-                )
-                .await?;
+                    flags,
+                ));
+
+                if let Some(tls) = maybe_tls {
+                    builder.tls(tls);
+                }
+                if let Some(worker_path) = event_service_manager_path {
+                    builder.event_worker_path(&worker_path);
+                }
+                if let Some(decorator) = get_decorator_option(sub_matches) {
+                    builder.decorator(decorator);
+                }
+                if let Some(import_map) = import_map_path {
+                    builder.import_map_path(&import_map);
+                }
+                if let Some(inspector_option) = maybe_inspector_option {
+                    builder.inspector(inspector_option);
+                }
+                if let Some(specifier) = jsx_specifier {
+                    builder.jsx_specifier(&specifier);
+                }
+                if let Some(module) = jsx_module {
+                    builder.jsx_module(&module);
+                }
+
+                builder.extend_static_patterns(static_patterns);
+                builder.entrypoints_mut().main = maybe_main_entrypoint;
+                builder.entrypoints_mut().events = maybe_events_entrypoint;
+
+                *builder.flags_mut() = flags;
+
+                builder.build().await?.listen().await?;
             }
             Some(("bundle", sub_matches)) => {
                 let output_path = sub_matches.get_one::<String>("output").cloned().unwrap();
