@@ -39,7 +39,8 @@ deno_core::extension!(
         "js/util/event_stream_parser.mjs",
         "js/util/event_source_stream.mjs",
         "js/onnxruntime/onnx.js",
-        "js/onnxruntime/cache_adapter.js"
+        "js/onnxruntime/cache_adapter.js",
+        "js/onnxruntime/inference_api.js"
     ]
 );
 

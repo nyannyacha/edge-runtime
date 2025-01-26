@@ -1,9 +1,9 @@
 const core = globalThis.Deno.core;
 
-const DataTypeMap = Object.freeze({
+export const DataTypeMap = Object.freeze({
   float32: Float32Array,
   float64: Float64Array,
-  string: Array, // string[]
+  string: Array.from, // string[]
   int8: Int8Array,
   uint8: Uint8Array,
   int16: Int16Array,
@@ -15,7 +15,7 @@ const DataTypeMap = Object.freeze({
   bool: Uint8Array,
 });
 
-class Tensor {
+export class Tensor {
   /** @type {DataType} Type of the tensor. */
   type;
 
@@ -33,16 +33,22 @@ class Tensor {
       throw new Error(`Unsupported type: ${type}`);
     }
 
-    const dataArray = new DataTypeMap[type](data);
+    const dataType = DataTypeMap[type];
+
+    // Checking if is constructor or function
+    const dataArray =
+      (dataType.prototype && Object.getOwnPropertyNames(dataType.prototype).length > 1)
+        ? new dataType(data)
+        : dataType(data);
 
     this.type = type;
     this.data = dataArray;
     this.dims = dims;
-    this.size = dataArray.length
+    this.size = dataArray.length;
   }
 }
 
-class InferenceSession {
+export class InferenceSession {
   sessionId;
   inputNames;
   outputNames;
@@ -79,8 +85,8 @@ const onnxruntime = {
   Tensor,
   env: {},
   InferenceSession: {
-    create: InferenceSession.fromBuffer
+    create: InferenceSession.fromBuffer,
   },
 };
 
-globalThis[Symbol.for("onnxruntime")] = onnxruntime;
+globalThis[Symbol.for('onnxruntime')] = onnxruntime;
