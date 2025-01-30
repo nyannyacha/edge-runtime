@@ -101,9 +101,9 @@ struct JsTensorTypeSerdeHelper(#[serde(with = "JsTensorType")] TensorElementType
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JsTensor {
     #[serde(rename = "type", with = "JsTensorType")]
-    data_type: TensorElementType,
-    data: JsBuffer,
-    dims: Vec<i64>,
+    pub(crate) data_type: TensorElementType,
+    pub(crate) data: JsBuffer,
+    pub(crate) dims: Vec<i64>,
 }
 
 impl JsTensor {
