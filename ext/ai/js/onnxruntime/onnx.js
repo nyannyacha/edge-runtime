@@ -42,7 +42,11 @@ export class Tensor {
         : dataType(data);
 
     this.type = type;
-    this.data = dataArray;
+    this.data = {
+      ty: type,
+      c: dataArray,
+    };
+
     this.dims = dims;
     this.size = dataArray.length;
   }
@@ -66,6 +70,7 @@ export class InferenceSession {
   }
 
   async run(inputs) {
+    console.log(inputs);
     const outputs = await core.ops.op_sb_ai_ort_run_session(this.sessionId, inputs);
 
     // Parse to Tensor

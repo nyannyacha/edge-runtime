@@ -1,17 +1,18 @@
-/// /// <reference path="./types.d.ts" />
+/// <reference path="./types.d.ts" />
 
 /*
 const modelUrl = 'https://huggingface.co/kalleby/hp-to-miles/resolve/main/model.onnx?download=true';
 const modelConfigUrl =
   'https://huggingface.co/kalleby/hp-to-miles/resolve/main/config.json?download=true';
 
-const model = await Supabase.ai.RawSession.fromUrl(modelUrl);
+// const model = await Supabase.ai.RawSession.fromUrl(modelUrl);
 const modelConfig = await fetch(modelConfigUrl).then((r) => r.json());
 
 Deno.serve(async (req: Request) => {
   const params = new URL(req.url).searchParams;
   const inputValue = parseInt(params.get('value'));
 
+  const input = new Supabase.ai.RawTensor('float32', [inputValue], [1, 1]);
   const input = new Supabase.ai.RawTensor('float32', [inputValue], [1, 1]);
     .minMaxNormalize(modelConfig.input.min, modelConfig.input.max);
 
@@ -71,45 +72,63 @@ Deno.serve(async (_req: Request) => {
 });
 */
 
-const { Tensor, RawSession } = Supabase.ai;
+// const { Tensor, RawSession } = Supabase.ai;
 
-const session = await RawSession.fromHuggingFace('kallebysantos/vehicle-emission', {
-  path: {
-    modelFile: 'model.onnx',
-  },
-});
+// const session = await RawSession.fromHuggingFace('kallebysantos/vehicle-emission', {
+//   path: {
+//     modelFile: 'model.onnx',
+//   },
+// });
+
+// Deno.serve(async (_req: Request) => {
+//   // sample data could be a JSON request
+//   const carsBatchInput = [{
+//     'Model_Year': 2021,
+//     'Engine_Size': 2.9,
+//     'Cylinders': 6,
+//     'Fuel_Consumption_in_City': 13.9,
+//     'Fuel_Consumption_in_City_Hwy': 10.3,
+//     'Fuel_Consumption_comb': 12.3,
+//     'Smog_Level': 3,
+//   }, {
+//     'Model_Year': 2023,
+//     'Engine_Size': 2.4,
+//     'Cylinders': 4,
+//     'Fuel_Consumption_in_City': 9.9,
+//     'Fuel_Consumption_in_City_Hwy': 7.0,
+//     'Fuel_Consumption_comb': 8.6,
+//     'Smog_Level': 3,
+//   }];
+
+//   // Parsing objects to tensor input
+//   const inputTensors: Record<string, Supabase.Tensor<'float32'>> = {};
+//   session.inputs.forEach((inputKey) => {
+//     const values = carsBatchInput.map((item) => item[inputKey]);
+
+//     inputTensors[inputKey] = new Tensor('float32', values, [values.length, 1]);
+//   });
+
+//   const { emissions } = await session.run(inputTensors);
+//   console.log(emissions);
+//   // [ 289.01, 199.53]
+
+//   return Response.json({ result: emissions });
+// });
+
+const modelUrl =
+  'https://huggingface.co/pirocheto/phishing-url-detection/resolve/main/model.onnx?download=true';
+  
+const model = await Supabase.ai.RawSession.fromUrl(modelUrl);
 
 Deno.serve(async (_req: Request) => {
-  // sample data could be a JSON request
-  const carsBatchInput = [{
-    'Model_Year': 2021,
-    'Engine_Size': 2.9,
-    'Cylinders': 6,
-    'Fuel_Consumption_in_City': 13.9,
-    'Fuel_Consumption_in_City_Hwy': 10.3,
-    'Fuel_Consumption_comb': 12.3,
-    'Smog_Level': 3,
-  }, {
-    'Model_Year': 2023,
-    'Engine_Size': 2.4,
-    'Cylinders': 4,
-    'Fuel_Consumption_in_City': 9.9,
-    'Fuel_Consumption_in_City_Hwy': 7.0,
-    'Fuel_Consumption_comb': 8.6,
-    'Smog_Level': 3,
-  }];
-
-  // Parsing objects to tensor input
-  const inputTensors: Record<string, Supabase.Tensor<'float32'>> = {};
-  session.inputs.forEach((inputKey) => {
-    const values = carsBatchInput.map((item) => item[inputKey]);
-
-    inputTensors[inputKey] = new Tensor('float32', values, [values.length, 1]);
-  });
-
-  const { emissions } = await session.run(inputTensors);
-  console.log(emissions);
-  // [ 289.01, 199.53]
-
-  return Response.json({ result: emissions });
+  const urls = [
+    'https://clubedemilhagem.com/home.php',
+    'http://www.medicalnewstoday.com/articles/188939.php',
+    'https://magalu-crediarioluiza.com/Produto_20203/produto.php?sku=1',
+  ];
+  console.log( Supabase.ai.RawTensor);
+  const input = new Supabase.ai.RawTensor('string', urls, [urls.length]);
+  const output = await model.run({ inputs: input });
+  console.log(output);
+  return Response.json({ result: output?.data });
 });

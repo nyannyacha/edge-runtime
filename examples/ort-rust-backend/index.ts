@@ -7,7 +7,8 @@ env.allowLocalModels = false;
 const pipe = await pipeline('feature-extraction', 'supabase/gte-small', { device: 'auto' });
 
 Deno.serve(async (req: Request) => {
-  const { input } = await req.json();
+  //const { input } = await req.json();
+  const input = 'Hello world';
 
   const output = await pipe(input, { pooling: 'mean', normalize: true });
 

@@ -5,9 +5,7 @@ pub(crate) mod onnx;
 pub(crate) mod session;
 
 use core::str;
-use std::{
-    borrow::Cow, cell::RefCell, collections::HashMap, fs::File, io::Write, rc::Rc, sync::Arc,
-};
+use std::{borrow::Cow, cell::RefCell, collections::HashMap, rc::Rc, sync::Arc};
 
 use anyhow::{anyhow, Context, Result};
 use base_rt::BlockingScopeCPUUsageMetricExt;
@@ -65,6 +63,7 @@ pub async fn op_sb_ai_ort_run_session(
     #[string] model_id: String,
     #[serde] input_values: HashMap<String, JsTensor>,
 ) -> Result<HashMap<String, ToJsTensor>> {
+    println!("ORT: {input_values:?}");
     let model = Model::from_id(&model_id)
         .await
         .ok_or(anyhow!("could not found session for id: {model_id:?}"))?;
@@ -116,6 +115,7 @@ pub async fn op_sb_ai_ort_run_session(
                         return;
                     }
                 };
+                println!("ORT: {outputs:?}");
 
                 let _ = tx.send(Ok(outputs));
             });

@@ -6,7 +6,7 @@ use ort::{
     memory::{AllocationDevice, AllocatorType, MemoryInfo, MemoryType},
     session::SessionInputValue,
     tensor::{PrimitiveTensorElementType, TensorElementType},
-    value::{DynValue, DynValueTypeMarker, TensorRefMut, ValueRefMut},
+    value::{DynValue, DynValueTypeMarker, Tensor, TensorRefMut, ValueRefMut},
 };
 
 use serde::{Deserialize, Serialize};
@@ -99,17 +99,44 @@ pub enum JsTensorType {
 struct JsTensorTypeSerdeHelper(#[serde(with = "JsTensorType")] TensorElementType);
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "ty", content = "c")]
+enum JsTensorData {
+    #[serde(rename = "string")]
+    StringArray(Vec<String>),
+    // TODO:(kallebysantos) Find some way to get #[serde(untagged)] working with `JsBuffer`
+    #[serde(
+        alias = "float32",
+        alias = "float64",
+        alias = "int8",
+        alias = "int16",
+        alias = "uint8",
+        alias = "uint16",
+        alias = "int32",
+        alias = "uint32",
+        alias = "int64",
+        alias = "uint64"
+    )]
+    TypedArrayBuffer(JsBuffer),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct JsTensor {
     #[serde(rename = "type", with = "JsTensorType")]
-    pub(crate) data_type: TensorElementType,
-    pub(crate) data: JsBuffer,
-    pub(crate) dims: Vec<i64>,
+    data_type: TensorElementType,
+    data: JsTensorData,
+    dims: Vec<i64>,
 }
 
 impl JsTensor {
     pub fn extract_ort_tensor_ref<'a, T: PrimitiveTensorElementType + Debug>(
-        mut self,
+        self,
     ) -> anyhow::Result<ValueRefMut<'a, DynValueTypeMarker>> {
+        let JsTensorData::TypedArrayBuffer(mut data) = self.data else {
+            return Err(anyhow!(
+                "'StringArray' is not supported by 'PrimitiveTensorElementType'."
+            ));
+        };
+
         // Same impl. as the Tensor::from_array()
         // https://github.com/pykeio/ort/blob/abd527b6a1df8f566c729a9c4398bdfd185d652f/src/value/impl_tensor/create.rs#L170
         let memory_info = MemoryInfo::new(
@@ -121,11 +148,7 @@ impl JsTensor {
 
         // Zero-Copying Data to an ORT Tensor based on JS type
         let tensor = unsafe {
-            TensorRefMut::<T>::from_raw(
-                memory_info,
-                self.data.as_mut_ptr() as *mut c_void,
-                self.dims,
-            )
+            TensorRefMut::<T>::from_raw(memory_info, data.as_mut_ptr() as *mut c_void, self.dims)
         }?;
 
         Ok(tensor.into_dyn())
@@ -136,8 +159,11 @@ impl JsTensor {
             TensorElementType::Float32 => self.extract_ort_tensor_ref::<f32>()?.into(),
             TensorElementType::Float64 => self.extract_ort_tensor_ref::<f64>()?.into(),
             TensorElementType::String => {
-                // TODO: Handle string[] tensors from 'v8::Array'
-                return Err(anyhow!("Can't extract tensor from it: 'String' does not implement the 'IntoTensorElementType' trait."));
+                let JsTensorData::StringArray(data) = self.data else {
+                    return Err(anyhow!("'String Tensor' is not supported by JS Buffer."));
+                };
+
+                Tensor::from_string_array((self.dims, data))?.into()
             }
             TensorElementType::Int8 => self.extract_ort_tensor_ref::<i8>()?.into(),
             TensorElementType::Uint8 => self.extract_ort_tensor_ref::<u8>()?.into(),

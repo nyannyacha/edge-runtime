@@ -87,5 +87,5 @@ class UserTensor extends Tensor {
 
 export default {
   RawSession: UserInferenceSession,
-  Tensor: UserTensor,
+  RawTensor: UserTensor,
 };
